@@ -1,0 +1,247 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation template for creating workshop resources.
+
+Resources:
+    VPC:
+        Type: AWS::EC2::VPC
+        Properties:
+          CidrBlock: 10.0.0.0/16
+          EnableDnsHostnames: true
+          EnableDnsSupport: true
+          Tags:
+            - Key: Name
+              Value:
+                Ref: AWS::StackName
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+          Tags:
+          - Key: Name
+            Value:
+              Ref: AWS::StackName
+    GatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+          InternetGatewayId:
+            Ref: InternetGateway
+          VpcId:
+            Ref: VPC
+    RouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+          Tags:
+            - Key: Name
+              Value: {Ref: 'AWS::StackName'}
+          VpcId:
+            Ref: VPC
+    PublicRoute:
+        Type: AWS::EC2::Route
+        Properties:
+          DestinationCidrBlock: 0.0.0.0/0
+          GatewayId:
+            Ref: InternetGateway
+          RouteTableId:
+            Ref: RouteTable
+    Subnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+          CidrBlock: 10.0.0.0/24
+          MapPublicIpOnLaunch: true
+          AvailabilityZone:
+            Fn::Select:
+              - 0
+              - Fn::GetAZs: ""
+          Tags:
+            - Key: Name
+              Value:
+                Fn::Join:
+                  - '-'
+                  - [{Ref: 'AWS::StackName'}, "a"]
+          VpcId: {Ref: VPC}
+    Subnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+          CidrBlock: 10.0.1.0/24
+          MapPublicIpOnLaunch: true
+          AvailabilityZone:
+            Fn::Select:
+              - 1
+              - Fn::GetAZs: ""
+          Tags:
+            - Key: Name
+              Value:
+                Fn::Join:
+                  - '-'
+                  - [{Ref: 'AWS::StackName'}, "b"]
+          VpcId: {Ref: VPC}
+    Subnet3:
+        Type: AWS::EC2::Subnet
+        Properties:
+          CidrBlock: 10.0.2.0/24
+          MapPublicIpOnLaunch: true
+          AvailabilityZone:
+            Fn::Select:
+              - 2
+              - Fn::GetAZs: ""
+          Tags:
+            - Key: Name
+              Value:
+                Fn::Join:
+                  - '-'
+                  - [{Ref: 'AWS::StackName'}, "c"]
+          VpcId: {Ref: VPC}
+    SubnetAssoc1:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+          RouteTableId:
+            Ref: RouteTable
+          SubnetId:
+            Ref: Subnet1
+    SubnetAssoc2:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+          RouteTableId:
+            Ref: RouteTable
+          SubnetId:
+            Ref: Subnet2
+    SubnetAssoc3:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+          RouteTableId:
+            Ref: RouteTable
+          SubnetId:
+            Ref: Subnet3
+    InstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: Allow http to client host
+          VpcId:
+            Ref: VPC
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '3306'
+            ToPort: '3306'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '443'
+            ToPort: '443'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '443'
+            ToPort: '443'
+            CidrIpv6: ::/0
+          SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: '0'
+            ToPort: '65535'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '0'
+            ToPort: '65535'
+            CidrIpv6: ::/0
+    SGSelfRefIngress:
+        Type: 'AWS::EC2::SecurityGroupIngress'
+        DependsOn: InstanceSecurityGroup
+        Properties:
+          GroupId: !Ref InstanceSecurityGroup
+          IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          SourceSecurityGroupId: !Ref InstanceSecurityGroup
+    SGSelfRefEgress:
+        Type: 'AWS::EC2::SecurityGroupEgress'
+        DependsOn: InstanceSecurityGroup
+        Properties:
+          GroupId: !Ref InstanceSecurityGroup
+          IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          SourceSecurityGroupId: !Ref InstanceSecurityGroup
+    VPCEndpoint:
+        Type: AWS::EC2::VPCEndpoint
+        Properties:
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Principal: '*'
+                Action:
+                  - '*'
+                Resource:
+                  - '*'
+          RouteTableIds: [!Ref RouteTable ]
+          ServiceName: !Join
+            - ''
+            - - com.amazonaws.
+              - !Ref 'AWS::Region'
+              - .s3
+          VpcId: !Ref VPC
+    GlueRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Sid: ""
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "glue.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          ManagedPolicyArns:
+            - "arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess"
+            - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+            - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+            - "arn:aws:iam::aws:policy/CloudWatchFullAccess"
+            - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceNotebookRole"
+          RoleName: Workshop_AWSGlueServiceRole
+    S3Bucket:
+        Type: 'AWS::S3::Bucket'
+        Properties:
+             AccessControl: BucketOwnerFullControl
+        DeletionPolicy: Retain
+    DatabaseSubnetGroup:
+        Type: AWS::RDS::DBSubnetGroup
+        Properties:
+            DBSubnetGroupDescription: CloudFormation managed DB subnet group.
+            SubnetIds: [!Ref Subnet1, !Ref Subnet2, !Ref Subnet3]
+    DatabaseCluster:
+        Type: AWS::RDS::DBCluster
+        Properties:
+            Engine: aurora
+            MasterUsername: "master"
+            MasterUserPassword: "4we4df234"
+            DBSubnetGroupName:
+                Ref: DatabaseSubnetGroup
+            VpcSecurityGroupIds: [!Ref InstanceSecurityGroup]
+    DatabasePrimaryInstance:
+        Type: AWS::RDS::DBInstance
+        Properties:
+            Engine: aurora
+            DBClusterIdentifier:
+                Ref: DatabaseCluster
+            DBInstanceClass: db.r3.large
+            DBSubnetGroupName:
+                Ref: DatabaseSubnetGroup
+            PubliclyAccessible: true
+
+Outputs:
+  RDSUser:
+    Description: User name for audit database
+    Value: "master"
+  RDSPassword:
+    Description: Password for audit database
+    Value: "4we4df234"
+  RDSHost:
+    Description: Hostname for the RDS used in this lab
+    Value: !GetAtt DatabasePrimaryInstance.Endpoint.Address
+  S3Bucket:
+    Description: S3 bucket for the workshop
+    Value: !Ref S3Bucket
