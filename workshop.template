@@ -144,6 +144,34 @@ Resources:
             FromPort: '0'
             ToPort: '65535'
             CidrIpv6: ::/0
+    NotebookSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: Allow Glue Notebook Server to Communicate with Glue
+          VpcId:
+            Ref: VPC
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '443'
+            ToPort: '443'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '443'
+            ToPort: '443'
+            CidrIpv6: ::/0
+          SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: '0'
+            ToPort: '65535'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '0'
+            ToPort: '65535'
+            CidrIpv6: ::/0
     SGSelfRefIngress:
         Type: 'AWS::EC2::SecurityGroupIngress'
         DependsOn: InstanceSecurityGroup
@@ -162,6 +190,24 @@ Resources:
           FromPort: '0'
           ToPort: '65535'
           SourceSecurityGroupId: !Ref InstanceSecurityGroup
+    SGSelfRefIngressNotebook:
+        Type: 'AWS::EC2::SecurityGroupIngress'
+        DependsOn: NotebookSecurityGroup
+        Properties:
+          GroupId: !Ref NotebookSecurityGroup
+          IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          SourceSecurityGroupId: !Ref NotebookSecurityGroup
+    SGSelfRefEgressNotebook:
+        Type: 'AWS::EC2::SecurityGroupEgress'
+        DependsOn: NotebookSecurityGroup
+        Properties:
+          GroupId: !Ref NotebookSecurityGroup
+          IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          SourceSecurityGroupId: !Ref NotebookSecurityGroup
     VPCEndpoint:
         Type: AWS::EC2::VPCEndpoint
         Properties:
@@ -201,7 +247,36 @@ Resources:
             - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
             - "arn:aws:iam::aws:policy/CloudWatchFullAccess"
             - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceNotebookRole"
-          RoleName: Workshop_AWSGlueServiceRole
+          RoleName: AWSGlueServiceRole_Diabetes
+    GlueNotebookRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Principal:
+                  Service:
+                    - "ec2.amazonaws.com"
+                Action:
+                  - "sts:AssumeRole"
+          ManagedPolicyArns:
+            - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+            - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceNotebookRole"
+          RoleName: AWSGlueServiceNotebookRole_Diabetes
+    GlueNotebookRoleInstanceProfile:
+      Type: "AWS::IAM::InstanceProfile"
+      Properties: 
+       Roles:
+        - !Ref GlueNotebookRole
+       InstanceProfileName: AWSGlueServiceNotebookRole_Diabetes
+    GlueRoleInstanceProfile:
+      Type: "AWS::IAM::InstanceProfile"
+      Properties: 
+       Roles:
+        - !Ref GlueRole
+       InstanceProfileName: AWSGlueServiceRole_Diabetes
     S3Bucket:
         Type: 'AWS::S3::Bucket'
         Properties:
@@ -245,3 +320,25 @@ Outputs:
   S3Bucket:
     Description: S3 bucket for the workshop
     Value: !Ref S3Bucket
+  VPC:
+    Description: VPC for the workshop
+    Value: !Ref VPC
+  Subnets:
+    Description: Subnets for the workshop
+    Value: 
+      Fn::Join:
+        - ','
+        - [!Ref Subnet3, !Ref Subnet2, !Ref Subnet1]
+  SecurityGroup:
+    Description: Security Group for the workshop
+    Value: !Ref InstanceSecurityGroup
+  GlueServiceRole:
+    Description: Role for Glue Console Access
+    Value: !Ref GlueRole
+  RoleForNotebook:
+    Description: Role for Glue Notebook
+    Value: !Ref GlueNotebookRole
+  NoteBookSecurityGroup:
+    Description: Security group for the Glue Notebook Server
+    Value: !Ref NotebookSecurityGroup
+
