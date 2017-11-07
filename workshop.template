@@ -329,7 +329,7 @@ Resources:
             ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", "DeepLearningAMI"]
             InstanceType: "t2.small"
             KeyName: !Ref KeyName
-            SecurityGroupIds: [!Ref GlueNotebookRole]
+            SecurityGroupIds: [!Ref InstanceSecurityGroup]
             IamInstanceProfile: !Ref GlueNotebookRoleInstanceProfile
             SubnetId:
                 Ref: Subnet1
