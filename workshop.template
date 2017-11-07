@@ -2,6 +2,19 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: CloudFormation template for creating workshop resources.
 
+Parameters:
+  KeyName:
+    Type: String
+    Description: Enter the name of the instance keypair you would like to use on the Deep Learning instance
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      "DeepLearningAMI": "ami-78994d02"
+    eu-west-2:
+      "DeepLearningAMI": "ami-df77b6a7"
+    us-east-2:
+      "DeepLearningAMI": "ami-76537f13"
 Resources:
     VPC:
         Type: AWS::EC2::VPC
@@ -247,6 +260,10 @@ Resources:
             - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
             - "arn:aws:iam::aws:policy/CloudWatchFullAccess"
             - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceNotebookRole"
+            - "arn:aws:iam::aws:policy/AmazonRDSFullAccess"
+            - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+            - "arn:aws:iam::aws:policy/AmazonVPCFullAccess"
+            - "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
           RoleName: AWSGlueServiceRole_Diabetes
     GlueNotebookRole:
         Type: "AWS::IAM::Role"
@@ -306,6 +323,16 @@ Resources:
             DBSubnetGroupName:
                 Ref: DatabaseSubnetGroup
             PubliclyAccessible: true
+    DeepLearningAMI:
+        Type: "AWS::EC2::Instance"
+        Properties:
+            ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", "DeepLearningAMI"]
+            InstanceType: "t2.small"
+            KeyName: !Ref KeyName
+            SecurityGroupIds: [!Ref GlueNotebookRole]
+            IamInstanceProfile: !Ref GlueNotebookRoleInstanceProfile
+            SubnetId:
+                Ref: Subnet1
 
 Outputs:
   RDSUser:
