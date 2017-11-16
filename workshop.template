@@ -11,7 +11,7 @@ Mappings:
   RegionMap:
     us-east-1:
       "DeepLearningAMI": "ami-78994d02"
-    eu-west-2:
+    us-west-2:
       "DeepLearningAMI": "ami-df77b6a7"
     us-east-2:
       "DeepLearningAMI": "ami-76537f13"
@@ -260,11 +260,11 @@ Resources:
             - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
             - "arn:aws:iam::aws:policy/CloudWatchFullAccess"
             - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceNotebookRole"
-            - "arn:aws:iam::aws:policy/AmazonRDSFullAccess"
-            - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-            - "arn:aws:iam::aws:policy/AmazonVPCFullAccess"
-            - "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
-          RoleName: AWSGlueServiceRole_Diabetes
+            - "arn:aws:iam::aws:policy/AmazonRDSFullAccess"         
+          RoleName: !Join
+            - ''
+            - - 'AWSGlueServiceRole'  
+              - !Ref 'AWS::StackName'
     GlueNotebookRole:
         Type: "AWS::IAM::Role"
         Properties:
@@ -281,19 +281,50 @@ Resources:
           ManagedPolicyArns:
             - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
             - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceNotebookRole"
-          RoleName: AWSGlueServiceNotebookRole_Diabetes
+          RoleName: !Join
+            - ''
+            - - 'AWSGlueServiceNotebookRole'  
+              - !Ref 'AWS::StackName'
+    GlucometerRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Effect: "Allow"
+              Principal:
+                Service:
+                  - "lambda.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        ManagedPolicyArns:
+          - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+          - "arn:aws:iam::aws:policy/AmazonVPCFullAccess"
+          - "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
+          - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        RoleName: !Join
+          - ''
+          - - 'GlucometerRole'  
+            - !Ref 'AWS::StackName'
     GlueNotebookRoleInstanceProfile:
       Type: "AWS::IAM::InstanceProfile"
       Properties: 
        Roles:
         - !Ref GlueNotebookRole
-       InstanceProfileName: AWSGlueServiceNotebookRole_Diabetes
+       InstanceProfileName: !Join
+          - ''
+          - - 'AWSGlueServiceNotebookRole'  
+            - !Ref 'AWS::StackName'
     GlueRoleInstanceProfile:
       Type: "AWS::IAM::InstanceProfile"
       Properties: 
        Roles:
         - !Ref GlueRole
-       InstanceProfileName: AWSGlueServiceRole_Diabetes
+       InstanceProfileName: !Join
+          - ''
+          - - 'AWSGlueServiceRole'  
+            - !Ref 'AWS::StackName'
     S3Bucket:
         Type: 'AWS::S3::Bucket'
         Properties:
@@ -333,6 +364,16 @@ Resources:
             IamInstanceProfile: !Ref GlueNotebookRoleInstanceProfile
             SubnetId:
                 Ref: Subnet1
+            Tags:
+              - Key: Name
+                Value:
+                  Ref: AWS::StackName
+            UserData:
+              Fn::Base64: !Sub |
+                #!/bin/bash
+                sudo pip install pymysql
+                sudo pip install -U scikit-learn
+                sudo pip install seaborn
 
 Outputs:
   RDSUser:
@@ -368,4 +409,6 @@ Outputs:
   NoteBookSecurityGroup:
     Description: Security group for the Glue Notebook Server
     Value: !Ref NotebookSecurityGroup
-
+  DeepLearningAMI:
+    Description: Information that relates to the Deep Learning AMI instance
+    Value: !GetAtt DeepLearningAMI.PublicDnsName
