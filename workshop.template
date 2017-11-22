@@ -4,8 +4,8 @@ Description: CloudFormation template for creating workshop resources.
 
 Parameters:
   KeyName:
-    Type: String
-    Description: Enter the name of the instance keypair you would like to use on the Deep Learning instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Select a keypair name for instance you would like to use on the Deep Learning AMI. If you do not have a keypair, please create one and come back to this step.
 
 Mappings:
   RegionMap:
